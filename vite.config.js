@@ -5,8 +5,8 @@ import vue from '@vitejs/plugin-vue'
 export default defineConfig({
   plugins: [vue()],
   // GitHub Pages部署配置
-  // base: process.env.NODE_ENV === 'production' ? '/baud-bolt/' : '/',
-  base: '/baud-bolt/',
+  base: process.env.NODE_ENV === 'production' ? '/baud-bolt/' : '/',
+  // base: '/baud-bolt/',
   server: {
     port: 3000,
     open: true
