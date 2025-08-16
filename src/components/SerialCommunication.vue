@@ -632,6 +632,16 @@ export default {
           this.connectionStartTime = new Date()
           this.$message.success('串口连接成功 - DTR/RTS已激活')
           
+          // 触发串口连接状态变化事件
+          window.dispatchEvent(new CustomEvent('serialConnectionChanged', {
+            detail: {
+              isConnected: true,
+              portName: this.selectedPortInfo || 'Unknown',
+              baudRate: this.serialConfig.baudRate,
+              connectionTime: this.connectionStartTime
+            }
+          }))
+          
           // 在接收区域显示连接成功信息
           const connectTimestamp = new Date().toLocaleTimeString()
           const connectInfoText = `[${connectTimestamp}] 串口连接成功!\n` +
@@ -771,6 +781,16 @@ export default {
           this.serialPort = null
         }
         
+        // 触发串口连接状态变化事件
+        window.dispatchEvent(new CustomEvent('serialConnectionChanged', {
+          detail: {
+            isConnected: false,
+            portName: this.serialConfig.port || 'Unknown',
+            baudRate: this.serialConfig.baudRate,
+            connectionTime: null
+          }
+        }))
+        
         // 在接收区域显示断开成功日志
         const disconnectSuccessTimestamp = new Date().toLocaleTimeString()
         const disconnectSuccessText = `[${disconnectSuccessTimestamp}] 串口连接已成功断开\n` +
@@ -853,6 +873,15 @@ export default {
       }
       
       this.receiveDataCount += data.length
+      
+      // 触发串口数据接收事件
+      window.dispatchEvent(new CustomEvent('serialDataReceived', {
+        detail: {
+          data: dataStr,
+          timestamp,
+          isError: false
+        }
+      }))
       
       // 在控制台输出接收到的原始数据用于调试
       console.log('接收到数据:', Array.from(data).map(b => b.toString(16).padStart(2, '0')).join(' '))
@@ -949,14 +978,25 @@ export default {
         
         // 在接收区域显示发送的数据（用于调试）
         const timestamp = new Date().toLocaleTimeString()
+        let sentDataStr = ''
         if (this.sendAsHex) {
           const formattedHex = Array.from(dataToSend)
             .map(byte => byte.toString(16).padStart(2, '0').toUpperCase())
             .join(' ')
+          sentDataStr = formattedHex
           this.receiveData += `[${timestamp}] 发送: ${formattedHex}\n`
         } else {
+          sentDataStr = this.sendData
           this.receiveData += `[${timestamp}] 发送: ${this.sendData}\n`
         }
+        
+        // 触发串口数据发送事件
+        window.dispatchEvent(new CustomEvent('serialDataSent', {
+          detail: {
+            data: sentDataStr,
+            timestamp
+          }
+        }))
         
         this.$message.success('数据发送成功')
       } catch (error) {

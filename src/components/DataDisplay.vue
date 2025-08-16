@@ -3,26 +3,41 @@
     <!-- 数据统计卡片 -->
     <el-row :gutter="20" class="stats-row">
       <!-- 串口连接状态卡片 -->
-      <el-col :span="8">
-        <el-card class="stat-card serial-status-card">
-          <div class="stat-content">
-            <el-icon class="stat-icon" :class="{ 'connected': serialStatus.isConnected, 'disconnected': !serialStatus.isConnected }">
-              <Connection />
-            </el-icon>
-            <div class="stat-info">
-              <div class="stat-value serial-port-name">{{ serialStatus.portName || '未连接' }}</div>
-              <div class="stat-label">
-                <span class="connection-status" :class="{ 'connected': serialStatus.isConnected, 'disconnected': !serialStatus.isConnected }">
-                  {{ serialStatus.isConnected ? '已连接' : '未连接' }}
-                </span>
-                <span v-if="serialStatus.isConnected && serialStatus.baudRate" class="baud-rate">
-                  | {{ serialStatus.baudRate }} bps
-                </span>
-              </div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
+       <el-col :span="8">
+         <el-card class="stat-card serial-status-card">
+           <div class="stat-content">
+             <el-icon class="stat-icon" :class="{ 'connected': serialStatus.isConnected, 'disconnected': !serialStatus.isConnected }">
+               <Connection />
+             </el-icon>
+             <div class="stat-info">
+               <div class="serial-port-selector">
+                 <el-select 
+                   v-model="serialStatus.selectedPort" 
+                   placeholder="选择串口"
+                   size="small"
+                   @change="handlePortChange"
+                   class="port-select"
+                 >
+                   <el-option
+                     v-for="port in availablePorts"
+                     :key="port.value"
+                     :label="port.label"
+                     :value="port.value"
+                   />
+                 </el-select>
+               </div>
+               <div class="stat-label">
+                 <span class="connection-status" :class="{ 'connected': serialStatus.isConnected, 'disconnected': !serialStatus.isConnected }">
+                   {{ serialStatus.isConnected ? '已连接' : '未连接' }}
+                 </span>
+                 <span v-if="serialStatus.isConnected && serialStatus.baudRate" class="baud-rate">
+                   | {{ serialStatus.baudRate }} bps
+                 </span>
+               </div>
+             </div>
+           </div>
+         </el-card>
+       </el-col>
       <el-col :span="4">
         <el-card class="stat-card">
           <div class="stat-content">
@@ -115,8 +130,11 @@
               >
                 <div class="data-timestamp">{{ item.timestamp }}</div>
                 <div class="data-type-badge">
-                  <el-tag :type="item.type === 'sent' ? 'warning' : 'success'" size="small">
-                    {{ item.type === 'sent' ? '发送' : '接收' }}
+                  <el-tag 
+                    :type="item.type === 'sent' ? 'warning' : item.type === 'received' ? 'success' : 'info'" 
+                    size="small"
+                  >
+                    {{ item.type === 'sent' ? '发送' : item.type === 'received' ? '接收' : '系统' }}
                   </el-tag>
                 </div>
                 <div class="data-content">
@@ -254,7 +272,7 @@ export default {
       displayFormat: 'both',
       // 过滤器
       filters: {
-        dataTypes: ['sent', 'received'],
+        dataTypes: ['sent', 'received', 'system'],
         lengthRange: [0, 1000]
       },
       searchKeyword: '',
@@ -264,8 +282,20 @@ export default {
         isConnected: false,
         portName: '',
         baudRate: '',
-        connectionTime: null
+        connectionTime: null,
+        selectedPort: ''
       },
+      // 可用串口列表
+      availablePorts: [
+        { value: 'COM1', label: 'COM1 (USB Serial Port)' },
+        { value: 'COM2', label: 'COM2 (Bluetooth)' },
+        { value: 'COM3', label: 'COM3 (Arduino Uno)' },
+        { value: 'COM4', label: 'COM4 (ESP32)' },
+        { value: 'COM5', label: 'COM5 (CH340)' },
+        { value: 'COM6', label: 'COM6 (FT232)' },
+        { value: 'COM7', label: 'COM7 (CP210x)' },
+        { value: 'COM8', label: 'COM8 (USB-TTL)' }
+      ],
       // 统计数据
       statistics: {
         totalSent: 0,
@@ -291,8 +321,16 @@ export default {
   
   mounted() {
     this.initializeSession()
-    this.startDataSimulation()
     this.initializeSerialStatus()
+    this.setupSerialDataListener()
+  },
+  
+  beforeDestroy() {
+    // 移除事件监听器
+    window.removeEventListener('serialDataReceived', this.handleSerialDataReceived)
+    window.removeEventListener('serialDataSent', this.handleSerialDataSent)
+    window.removeEventListener('serialConnectionChanged', this.handleSerialConnectionChanged)
+    window.removeEventListener('serialPortChanged', this.handleSerialPortChanged)
   },
   
   beforeUnmount() {
@@ -354,10 +392,10 @@ export default {
       
       this.rawData.push(dataItem)
       
-      // 更新统计
+      // 更新统计（系统消息不计入统计）
       if (type === 'sent') {
         this.statistics.totalSent++
-      } else {
+      } else if (type === 'received') {
         this.statistics.totalReceived++
       }
       
@@ -546,52 +584,80 @@ export default {
     
     // 初始化串口状态（用于演示）
     initializeSerialStatus() {
+      // 设置默认选中的串口
+      this.serialStatus.selectedPort = 'COM3'
+      
       // 模拟串口连接状态
       setTimeout(() => {
         this.serialStatus = {
+          ...this.serialStatus,
           isConnected: true,
           portName: 'COM3 (Arduino Uno)',
           baudRate: '9600',
-          connectionTime: new Date()
+          connectionTime: new Date(),
+          selectedPort: 'COM3'
         }
       }, 2000)
     },
     
-    // 开始数据模拟（用于演示）
-    startDataSimulation() {
-      // 模拟接收数据
-      setInterval(() => {
-        if (!this.isPaused) {
-          const simulatedData = [
-            'Hello World',
-            'Temperature: 25.6°C',
-            'Humidity: 60%',
-            'Status: OK',
-            'Error: Connection timeout',
-            'Data packet received'
-          ]
-          
-          const randomData = simulatedData[Math.floor(Math.random() * simulatedData.length)]
-          const isError = randomData.includes('Error')
-          this.addDataItem('received', randomData, isError)
+    // 处理串口切换
+    handlePortChange(selectedPort) {
+      // 触发串口切换事件
+      window.dispatchEvent(new CustomEvent('serialPortChanged', {
+        detail: {
+          portName: selectedPort,
+          selectedPort: selectedPort
         }
-      }, 3000)
+      }))
+    },
+    
+
+    
+    // 设置串口数据监听器
+    setupSerialDataListener() {
+      // 监听串口数据事件
+      window.addEventListener('serialDataReceived', this.handleSerialDataReceived)
+      window.addEventListener('serialDataSent', this.handleSerialDataSent)
+      window.addEventListener('serialConnectionChanged', this.handleSerialConnectionChanged)
+      window.addEventListener('serialPortChanged', this.handleSerialPortChanged)
+    },
+    
+    // 处理接收到的串口数据
+    handleSerialDataReceived(event) {
+      const { data, timestamp, isError } = event.detail
+      this.addDataItem('received', data, isError || false)
+    },
+    
+    // 处理发送的串口数据
+    handleSerialDataSent(event) {
+      const { data, timestamp } = event.detail
+      this.addDataItem('sent', data, false)
+    },
+    
+    // 处理串口连接状态变化
+    handleSerialConnectionChanged(event) {
+      const { isConnected, portName, baudRate, connectionTime } = event.detail
+      this.serialStatus = {
+        ...this.serialStatus,
+        isConnected,
+        portName: portName || this.serialStatus.portName,
+        baudRate: baudRate || this.serialStatus.baudRate,
+        connectionTime: connectionTime || this.serialStatus.connectionTime
+      }
       
-      // 模拟发送数据
-      setInterval(() => {
-        if (!this.isPaused) {
-          const commands = [
-            'GET_TEMP',
-            'GET_HUMIDITY',
-            'SET_MODE_AUTO',
-            'RESET',
-            'GET_STATUS'
-          ]
-          
-          const randomCommand = commands[Math.floor(Math.random() * commands.length)]
-          this.addDataItem('sent', randomCommand)
-        }
-      }, 5000)
+      // 在数据流中添加连接状态变化记录
+      const statusText = isConnected ? '串口已连接' : '串口已断开'
+      this.addDataItem('system', `${statusText}: ${portName || this.serialStatus.portName}`, false)
+    },
+    
+    // 处理串口切换
+    handleSerialPortChanged(event) {
+      const { portName, selectedPort } = event.detail
+      this.serialStatus.selectedPort = selectedPort
+      this.serialStatus.portName = portName
+      
+      // 在数据流中添加切换记录
+      this.addDataItem('system', `串口已切换到 ${portName}`, false)
     }
   }
 }
@@ -672,6 +738,37 @@ export default {
 .baud-rate {
   color: #909399;
   font-size: 11px;
+}
+
+/* 串口选择器样式 */
+.serial-port-selector {
+  margin-bottom: 8px;
+}
+
+.port-select {
+  width: 100%;
+  max-width: 200px;
+}
+
+.port-select .el-input__inner {
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.port-select .el-input__wrapper {
+  border: 1px solid #dcdfe6;
+  border-radius: 6px;
+  transition: all 0.3s;
+}
+
+.port-select .el-input__wrapper:hover {
+  border-color: #409eff;
+}
+
+.port-select.is-focus .el-input__wrapper {
+  border-color: #409eff;
+  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
 }
 
 .card-header {
