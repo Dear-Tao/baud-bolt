@@ -2,7 +2,28 @@
   <div class="data-display">
     <!-- 数据统计卡片 -->
     <el-row :gutter="20" class="stats-row">
-      <el-col :span="6">
+      <!-- 串口连接状态卡片 -->
+      <el-col :span="8">
+        <el-card class="stat-card serial-status-card">
+          <div class="stat-content">
+            <el-icon class="stat-icon" :class="{ 'connected': serialStatus.isConnected, 'disconnected': !serialStatus.isConnected }">
+              <Connection />
+            </el-icon>
+            <div class="stat-info">
+              <div class="stat-value serial-port-name">{{ serialStatus.portName || '未连接' }}</div>
+              <div class="stat-label">
+                <span class="connection-status" :class="{ 'connected': serialStatus.isConnected, 'disconnected': !serialStatus.isConnected }">
+                  {{ serialStatus.isConnected ? '已连接' : '未连接' }}
+                </span>
+                <span v-if="serialStatus.isConnected && serialStatus.baudRate" class="baud-rate">
+                  | {{ serialStatus.baudRate }} bps
+                </span>
+              </div>
+            </div>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="4">
         <el-card class="stat-card">
           <div class="stat-content">
             <el-icon class="stat-icon"><Upload /></el-icon>
@@ -13,7 +34,7 @@
           </div>
         </el-card>
       </el-col>
-      <el-col :span="6">
+      <el-col :span="4">
         <el-card class="stat-card">
           <div class="stat-content">
             <el-icon class="stat-icon"><Download /></el-icon>
@@ -24,7 +45,7 @@
           </div>
         </el-card>
       </el-col>
-      <el-col :span="6">
+      <el-col :span="4">
         <el-card class="stat-card">
           <div class="stat-content">
             <el-icon class="stat-icon"><Timer /></el-icon>
@@ -35,7 +56,7 @@
           </div>
         </el-card>
       </el-col>
-      <el-col :span="6">
+      <el-col :span="4">
         <el-card class="stat-card">
           <div class="stat-content">
             <el-icon class="stat-icon"><TrendCharts /></el-icon>
@@ -238,6 +259,13 @@ export default {
       },
       searchKeyword: '',
       timeRange: null,
+      // 串口连接状态
+      serialStatus: {
+        isConnected: false,
+        portName: '',
+        baudRate: '',
+        connectionTime: null
+      },
       // 统计数据
       statistics: {
         totalSent: 0,
@@ -264,6 +292,7 @@ export default {
   mounted() {
     this.initializeSession()
     this.startDataSimulation()
+    this.initializeSerialStatus()
   },
   
   beforeUnmount() {
@@ -515,6 +544,19 @@ export default {
       }
     },
     
+    // 初始化串口状态（用于演示）
+    initializeSerialStatus() {
+      // 模拟串口连接状态
+      setTimeout(() => {
+        this.serialStatus = {
+          isConnected: true,
+          portName: 'COM3 (Arduino Uno)',
+          baudRate: '9600',
+          connectionTime: new Date()
+        }
+      }, 2000)
+    },
+    
     // 开始数据模拟（用于演示）
     startDataSimulation() {
       // 模拟接收数据
@@ -596,6 +638,40 @@ export default {
   font-size: 12px;
   color: #909399;
   margin-top: 4px;
+}
+
+/* 串口状态卡片样式 */
+.serial-status-card {
+  border-left: 4px solid #409eff;
+}
+
+.serial-status-card .stat-icon.connected {
+  color: #67c23a;
+}
+
+.serial-status-card .stat-icon.disconnected {
+  color: #f56c6c;
+}
+
+.serial-port-name {
+  font-size: 18px !important;
+  font-weight: 600;
+  color: #303133;
+}
+
+.connection-status.connected {
+  color: #67c23a;
+  font-weight: 600;
+}
+
+.connection-status.disconnected {
+  color: #f56c6c;
+  font-weight: 600;
+}
+
+.baud-rate {
+  color: #909399;
+  font-size: 11px;
 }
 
 .card-header {
